@@ -3,7 +3,7 @@ import sys
 #fix for output encoding error
 reload(sys)  
 sys.setdefaultencoding('utf8')
-
+from operator import itemgetter
 import multiprocessing
 import csv
 import datetime
@@ -71,7 +71,7 @@ def multiprocessHNTitles(nums, nprocs):
 		#worker function to construct a dictionary per chunk and add to an output queue
 		outdict = {}
 		for n in nums:
-			print "Processing record" + str(n)
+			#print "Processing record" + str(n)
 			outdict[n] =  GetRecord(n) #dict record has item # as key, tuple of (score,title) as value
 
 		print "Worker " + str(i) + " has completed"
@@ -109,7 +109,7 @@ def multiprocessHNTitles(nums, nprocs):
 
 def GetTopNTitlesForDay(inputDate, N):
 
-	#returns a list of the top N titles
+	#returns a list of tuples of top N titles and their scores 
 	#input is a datetime and integer
 
 	#get item id range
@@ -122,11 +122,10 @@ def GetTopNTitlesForDay(inputDate, N):
 	current = itemTuple[0]
 	maxNum = itemTuple[1]
 
+	#instantiate dicts and arrays for items, scores, and titles
 	itemDict = {}
-
 	scores = []
-
-	titleList = []
+	outputList = []
 
 	#construct dictionary in parallelized process
 	itemDict = multiprocessHNTitles(range(current,maxNum), 512) #returns dict with itemNum as key, (score,title) tuple as value
@@ -149,9 +148,12 @@ def GetTopNTitlesForDay(inputDate, N):
 
 	for key in itemDict:
 		if itemDict[key][0] >= min(scores): #if score is geq than Nth greatest score 
-			titleList.append(itemDict[key][1]) #add this title to the list
+			outputList.append((itemDict[key][1],itemDict[key][0])) #add this (title,score) to the list
 
-	return titleList
+	#sort list of tuples 
+	outputList.sort(key=itemgetter(1), reverse=True)
+
+	return outputList
 
 
 
@@ -162,8 +164,6 @@ def BuildDataSet(startDate, endDate, N):
 	
 	currentDate = startDate
 
-	itemDict = {}
-
 	while currentDate <= endDate:
 		#call topN for each day in range
 		
@@ -171,51 +171,47 @@ def BuildDataSet(startDate, endDate, N):
 
 		print "Getting top N titles for " + dateStr #debug statement
 
-		itemDict[dateStr] = GetTopNTitlesForDay(currentDate,N) #store story titles list with date as key
+		WriteDataSet(GetTopNTitlesForDay(currentDate,N), dateStr) #get top N titles for day as list and pass to writeDataSet with the dataStr
 
 		currentDate = currentDate + datetime.timedelta(days=1) #increment for next day 
 
+	return 
 
-	return itemDict
 
+def WriteDataSet(data, date):
+	#this ouputs a csv using a list of (title,score) tuples and a date 
+	#  output csv is named for date 
 
-def WriteDataSet(dataDict, csvNameStr):
-	#this writes the dictionary to a csv, with the given name
-	# dict has expected format of date for key name and list of titles for key value
-	#   each record in the csv should be date,title; with each title from the list getting a record
+	outputName = str(date) + ".csv"
 
-	print "Writing data set to file now" #debug statement
+	print "Writing data set to " + str(outputName) #debug statement
 
-	with open(csvNameStr, 'w') as csv_file: #open file in write mode
+	with open(outputName, 'w') as csv_file: #open file in write mode
 
-		csv_file.write("Date, Title \n") #write header rows
+		csv_file.write("Date, Title, Score \n") #write header rows
 
-		for key, value in dataDict.items(): #iterate over each day,list
-			for title in value: #iterate over each title in the list
-				outputStr = ','.join((key,title)).encode('utf-8') #create record and encode as utf-8	
-				outputStr = ' '.join((outputStr, '\n')).encode('utf-8') #add endline
-				csv_file.write(outputStr)
+		for record in data: #iterate over each title,score in the list
+			outputStr = ','.join((date,str(record[0]),str(record[1]))).encode('utf-8') #create record and encode as utf-8	
+			outputStr = ' '.join((outputStr, '\n')).encode('utf-8') #add endline
+			csv_file.write(outputStr)
+
 def main():
 	#this script is called with a min date and max date, then outputs to requested csv name
 	# minDate, maxDate, output.csv
 
-	if len(sys.argv) < 5:
-		print "Input minDate, maxDate, topN, fileName"
+	if len(sys.argv) < 4:
+		print "Input minDate, maxDate, topN"
 		exit
 	else:
 		minDateStr = sys.argv[1] #arg 0 is the script itself
 		maxDateStr = sys.argv[2]
 		n = int(sys.argv[3])
-		csvNameStr = sys.argv[4]
 
 		
 	minDate = datetime.datetime.strptime(minDateStr, "%m/%d/%Y")
 	maxDate = datetime.datetime.strptime(maxDateStr, "%m/%d/%Y")
 	
-	dataDict = BuildDataSet(minDate,maxDate, n)
-
-	#output to CSV
-	WriteDataSet(dataDict, csvNameStr)
+	BuildDataSet(minDate,maxDate, n) #call function that builds each day of data and outputs it
 
 	
 #call main 
