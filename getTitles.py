@@ -1,7 +1,14 @@
 import sys
+
+#fix for output encoding error
+reload(sys)  
+sys.setdefaultencoding('utf8')
+
 import multiprocessing
 import csv
 import datetime
+import math
+from multiprocessing import Process, Queue, Manager
 
 from hackernews import HackerNews
 hn = HackerNews() 
@@ -41,18 +48,62 @@ def itemRange(inputDateTime):
 	return (lowEnd,highEnd)
 
 def GetRecord(itemId):
-	#given an item ID, return a tuple of (title,score) 
+	#given an item ID, return a tuple of (score,title) 
 	try:
-		item = hn.get_item(current)
+		item = hn.get_item(itemId)
 		
 		if item.item_type == "story": #filter out non-stories 
 			title = item.title
 			score = item.score 
 			
-			return (title,score)
+			return (score,title)
+		
+		else:
+			return (0, "Non story") 
 
 	except:
-		return ("NullRecord", 0) 
+		return (0, "Null Record") 
+
+def multiprocessHNTitles(nums, nprocs):
+	#given a set of records and number of processes parallelize work and return a dict 
+
+	def worker(nums, out_q, i):
+		#worker function to construct a dictionary per chunk and add to an output queue
+		outdict = {}
+		for n in nums:
+			print "Processing record" + str(n)
+			outdict[n] =  GetRecord(n) #dict record has item # as key, tuple of (score,title) as value
+
+		print "Worker " + str(i) + " has completed"
+		out_q.put(outdict)
+
+	#each process will get chunksize of item numbers and a queue to put output dict into
+
+	manager = Manager()
+	out_q = manager.Queue()
+	chunksize = int(math.ceil(len(nums)/float(nprocs)))
+	procs = [] 
+
+	for i in xrange(nprocs):
+		p = Process(
+			target=worker,
+			args=(nums[chunksize*i:chunksize*(i+1)],
+			out_q, i))
+		procs.append(p)
+		p.start()
+
+	#wait for worker processes to finish
+	for p in procs:
+		p.join()
+
+	#collect results into a single dict then output the dict
+	print "constructing dictionary now" 
+	resultdict = {}
+	for i in xrange(nprocs):
+		resultdict.update(out_q.get())
+
+#	print str(resultdict)
+	return resultdict
 
 	
 
@@ -77,44 +128,22 @@ def GetTopNTitlesForDay(inputDate, N):
 
 	titleList = []
 
-	pool = multiprocessing.Pool()
+	#construct dictionary in parallelized process
+	itemDict = multiprocessHNTitles(range(current,maxNum), 512) #returns dict with itemNum as key, (score,title) tuple as value
 
 	
+	#construct score list to trim dictionary
+	for key in itemDict:
+#		print "appending score for key " + str(key) + " with value " + str(itemDict[key])
+		scores.append(itemDict[key][0])
 
-	
-
-	#construct dictionary with titles and scores
-#	while current <= maxNum:
-		#print str(current) + " is getting processed now" #debug
-		
-#		try:	
-#			item = hn.get_item(current)
-#		
-#			if item.item_type == "story": #filter out non-stories 
-#				title = item.title
-#				score = item.score 
-#			
-#				itemDict[current] = (score,title)
-#				scores.append(score)
-
-				#print "score is " + str(score) + " and title is " + str(title)
-				#print "scores list is now " + str(scores)
-	
-#		except:
-#
-#			print str(current) + " is an invalid item id" #debug
-
-#		current = current + 1
-
-#		if current % 100 == 0:
-#			print str(maxNum - current) + " remain" 
 
 	print 'dict construction complete, starting sort and clean up for ' + str(inputDate) #debug statement 
 
 	#sort score list to get score of top N stories 
 	scores.sort(reverse=True)
 	del scores[N:] #truncate list to only top N scores 
-	print "top score list is: " + str(scores) #debug
+#	print "top score list is: " + str(scores) #debug
 	
 	#trim dictionary to top N
 
@@ -159,13 +188,13 @@ def WriteDataSet(dataDict, csvNameStr):
 
 	with open(csvNameStr, 'w') as csv_file: #open file in write mode
 
-		f.write("Date, Title \n") #write header rows
+		csv_file.write("Date, Title \n") #write header rows
 
 		for key, value in dataDict.items(): #iterate over each day,list
 			for title in value: #iterate over each title in the list
-				outputStr = ','.join(key, title).encode('utf-8') #create record and encode as utf-8	
-				outputStr = ' '.join(outputStr, '\n').encode('utf-8') #add endline
-				f.write(outputStr)
+				outputStr = ','.join((key,title)).encode('utf-8') #create record and encode as utf-8	
+				outputStr = ' '.join((outputStr, '\n')).encode('utf-8') #add endline
+				csv_file.write(outputStr)
 def main():
 	#this script is called with a min date and max date, then outputs to requested csv name
 	# minDate, maxDate, output.csv
