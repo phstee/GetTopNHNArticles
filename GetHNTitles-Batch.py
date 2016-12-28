@@ -15,6 +15,7 @@ import multiprocessing
 import csv
 import datetime
 import math
+import time
 from multiprocessing import Process, Queue, Manager
 
 from hackernews import HackerNews
@@ -27,7 +28,14 @@ def binSearch(inputDateTime):
 	#print 'performing bin search for ' + str(inputDateTime) #debug 
 
 	lowEnd = 0
-	highEnd = hn.get_max_item() #use max item ID as high end
+	
+	while True:
+		try:
+		     highEnd = hn.get_max_item() #use max item ID as high end
+		     break
+		except:
+		     print "Max item failed"
+		     time.sleep(5) #sometimes http requests fail, so wait and retry 
 
 	while highEnd - lowEnd > 1:
 		#target is to get highEnd to be one away from lowEnd
@@ -36,7 +44,15 @@ def binSearch(inputDateTime):
 		
 		mid = (highEnd + lowEnd)/2 #set mid point to middle of high and low
 		
-		if hn.get_item(mid).submission_time < inputDateTime:
+		while True:
+			try:
+		     	     midSubTime = hn.get_item(mid).submission_time
+			     break
+			except:
+		             print "Failed due to mid point: " + str(mid)
+			     mid = mid + 1 #increment and try next item
+
+		if midSubTime < inputDateTime:
 			lowEnd = mid
 		else:
 			highEnd = mid
@@ -168,14 +184,14 @@ def WriteDataSet(data, date, storageaccount, storagecontainer,sastoken):
 	#this ouputs a csv using a list of (title,score) tuples and a date 
 	#  output csv is named for date 
 
-	outputName = str(date) + ".csv"
+	outputName = str(date) + ".tsv"
 
 	with open(outputName, 'w') as csv_file: #open file in write mode
 
-		csv_file.write("Date, Title, Score \n") #write header rows
+		csv_file.write("Date \t Title \t Score \n") #write header rows
 
 		for record in data: #iterate over each title,score in the list
-			outputStr = ','.join((date,str(record[0]),str(record[1]))).encode('utf-8') #create record and encode as utf-8	
+			outputStr = '\t'.join((date,str(record[0]),str(record[1]))).encode('utf-8') #create record and encode as utf-8	
 			outputStr = ' '.join((outputStr, '\n')).encode('utf-8') #add endline
 			csv_file.write(outputStr)
 

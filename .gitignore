@@ -1,2 +1,4 @@
 *.csv
 credFile.py
+credFile.pyc
+*.swp

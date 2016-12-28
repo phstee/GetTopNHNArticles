@@ -225,7 +225,7 @@ def create_pool(batch_service_client, pool_id,
     # For more information about the virtual machine configuration, see:
     # https://azure.microsoft.com/documentation/articles/batch-linux-nodes/
     sku_to_use, image_ref_to_use = \
-        common.helpers.select_latest_verified_vm_image_with_node_agent_sku(
+        helpers.select_latest_verified_vm_image_with_node_agent_sku(
             batch_service_client, publisher, offer, sku)
 
     new_pool = batch.models.PoolAddParameter(
@@ -236,7 +236,7 @@ def create_pool(batch_service_client, pool_id,
         vm_size=_POOL_VM_SIZE,
         target_dedicated=_POOL_NODE_COUNT,
         start_task=batch.models.StartTask(
-            command_line=common.helpers.wrap_commands_in_shell('linux',
+            command_line=helpers.wrap_commands_in_shell('linux',
                                                                task_commands),
             run_elevated=True,
             wait_for_success=True,
@@ -489,21 +489,21 @@ if __name__ == '__main__':
     # Pause execution until tasks reach Completed state.
     wait_for_tasks_to_complete(batch_client,
                                _JOB_ID,
-                               datetime.timedelta(minutes=60))
+                               datetime.timedelta(minutes=600))
 
     print("  Success! All tasks reached the 'Completed' state within the "
           "specified timeout period.")
 
     # Download the task output files from the output Storage container to a
     # local directory
-    download_blobs_from_container(blob_client,
-                                  output_container_name,
-                                  os.path.expanduser('~'))
+    #download_blobs_from_container(blob_client,
+     #                             output_container_name,
+      #                            os.path.expanduser('~/HNData/'))
 
     # Clean up storage resources
     print('Deleting containers...')
     blob_client.delete_container(app_container_name)
-    blob_client.delete_container(output_container_name)
+    #blob_client.delete_container(output_container_name)
 
     # Print out some timing info
     end_time = datetime.datetime.now().replace(microsecond=0)
