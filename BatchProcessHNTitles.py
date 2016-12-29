@@ -177,7 +177,7 @@ def get_container_sas_token(block_blob_client,
         block_blob_client.generate_container_shared_access_signature(
             container_name,
             permission=blob_permissions,
-            expiry=datetime.datetime.utcnow() + datetime.timedelta(hours=2))
+            expiry=datetime.datetime.utcnow() + datetime.timedelta(hours=4))
 
     return container_sas_token
 

@@ -184,14 +184,16 @@ def WriteDataSet(data, date, storageaccount, storagecontainer,sastoken):
 	#this ouputs a csv using a list of (title,score) tuples and a date 
 	#  output csv is named for date 
 
-	outputName = str(date) + ".tsv"
+	outputName = str(date) + ".csv"
 
 	with open(outputName, 'w') as csv_file: #open file in write mode
 
-		csv_file.write("Date \t Title \t Score \n") #write header rows
+		csv_file.write("Date, Title, Score \n") #write header rows
 
 		for record in data: #iterate over each title,score in the list
-			outputStr = '\t'.join((date,str(record[0]),str(record[1]))).encode('utf-8') #create record and encode as utf-8	
+			str1 = str(record[0]).replace(',','')
+			str2 = str(record[1]).replace(',','')
+			outputStr = ','.join((date,str1,str2)).encode('utf-8') #create record and encode as utf-8	
 			outputStr = ' '.join((outputStr, '\n')).encode('utf-8') #add endline
 			csv_file.write(outputStr)
 
