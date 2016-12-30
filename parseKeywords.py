@@ -11,7 +11,19 @@ import string
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+from multiprocessing import Process, Queue, Manager
 
+
+def multiprocessRecords(records,nprocs):
+	#given an array of records (date, title, score) to process and number of processes to spin up, return an array with updated records and dict of keywrod counts
+
+	def worker(records, record_queue, keyword_queue, i):
+		#worker function that generates dicts for its chunk of work
+		recordArray = []
+		keywordDict = {}
+
+		for record in records:
+			recordArray
 
 
 def main():
