@@ -77,9 +77,9 @@ def multiprocessRecords(records,nprocs):
 		for record in records:
 			date = str(record[0])
 			title = str(record[1])
-			score = int(record[2])
+			postScore = int(record[2])
 			
-			print "Processing record " + title + " from " + date + " with score " + str(score)
+			#print "Processing record " + title + " from " + date + " with score " + str(postScore)
 
 			#prep keyword dict
 			if date not in keywordDict:
@@ -97,8 +97,8 @@ def multiprocessRecords(records,nprocs):
 			for keyword,score in results:
 				if score == maxValue: #get keywords with max score
 					keyword = keyword.translate(None,string.punctuation) #eliminate punctuation
-					if keyword not in blackListWords: #check if keyword not in blacklist
-						print "Adding keyword for this record: " + str(keyword)
+					if keyword not in blackListWords and keyword.isdigit() != True: #check if keyword not in blacklist and not a number 
+						#print "Adding keyword for this record: " + str(keyword)
 						keywords.append(keyword)
 
 						#then update keyword dict
@@ -108,15 +108,17 @@ def multiprocessRecords(records,nprocs):
 							keywordDict[date][keyword] = 1
 
 			#store record with new keyword list
-			newRecord = (date,title, score, keywords)
+			newRecord = (date,title, postScore, keywords)
 			updatedRecordArray.append(newRecord)
-			print "Record is now " + str(newRecord)
+			#print "Record is now " + str(newRecord)
 
 		#now add array to the queue
 		record_queue.put(updatedRecordArray)
 
 		#add keyword dict to queue
 		keyword_queue.put(keywordDict)
+
+		print "Worker " + str(i) + " is now done"
 
 	#main multiprocess function now
 	manager = Manager()
@@ -180,7 +182,7 @@ def main():
 	with open(outputFileNameAugmented, 'w') as f:
 		f.write("Date, Title, Score, Keywords \n") #write header rows
 
-		for record in dataSet:
+		for record in updatedRecords:
 			date = str(record[0]).replace(',','')
 			title = str(record[1]).replace(',','')
 			score = str(record[2]).replace(',','')
