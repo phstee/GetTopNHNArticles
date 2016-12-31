@@ -13,28 +13,140 @@ sys.setdefaultencoding('utf8')
 
 from multiprocessing import Process, Queue, Manager
 
+#global vars 
+
+#load blacklist
+blackListFile = open('blacklist.txt')
+blackList = blackListFile.read()
+blackListWords = blackList.split() #create a list of words from the black list file
+print "Blacklist file loaded!"
+
+
 
 def multiprocessRecords(records,nprocs):
-	#given an array of records (date, title, score) to process and number of processes to spin up, return an array with updated records and dict of keywrod counts
+	#given an array of records (date, title, score) to process and number of processes to spin up, return an array with updated records with (date,title,score,[keywords]); and dict with date as key, value ==(dict(keyword, occurenceCount))
+
+	def mergeKeywordDicts(dict1, dict2):
+		#given two keyword dicts with dict(date,dict(keyword,count)), return a combined dictionary with aggregated counts
+
+		outputDict = {}
+		
+		#iterate over each day of dict 1
+		for dateKey in dict1:
+
+			#prep outputDict
+			if dateKey not in outputDict:
+				outputDict[dateKey] = {}
+
+			try:
+				#dict1 and dict 2 have this date key
+				dict1DateDict = dict1[dateKey]
+				dict2DateDict = dict2[dateKey] 
+
+				#add all keywords from dict 1
+				for keyword in dict1DateDict:
+					if keyword not in outputDict[dateKey]:
+						outputDict[dateKey][keyword] = dict1DateDict[keyword]
+
+				#add all keywords from dict 2 (or merge them in)
+				for keyword in dict2DateDict:
+					if keyword not in outputDict[dateKey]:
+						outputDict[dateKey][keyword] = dict2DateDict[keyword]
+					else:
+						outputDict[dateKey][keyword] += dict2DateDict[keyword]
+			except:
+				#dict 1 only has this date key so clone all keywords/counts
+				outputDict[dateKey] = dict1[dateKey]
+
+		#any remaining records should be days of dict 2 where no records exist in dict 1
+		# so simply clone all keyword/counts for datekeys that are in dict2 but not in the outputdict yet
+		for dateKey in dict2:
+			if dateKey not in outputDict:
+				outputDict[dateKey] = dict2[dateKey]
+
+		return outputDict
+
 
 	def worker(records, record_queue, keyword_queue, i):
-		#worker function that generates dicts for its chunk of work
-		recordArray = []
+		#worker function that generates output array of updated records given an array of records and an output queue; also outputs a dict of keywords with date, keyword, frequency 
+		updatedRecordArray = []
 		keywordDict = {}
 
+
 		for record in records:
-			recordArray
+			date = record[0]
+			title = record[1]
+			score = record[2]
+			
+			print "Processing record " + str(title) + " from " + str(date)
+
+			#prep keyword dict
+			if date not in keywordDict:
+				keywordDict[date] = {}
+
+			title = title.translate(None,string.punctuation) #eliminate punctuation from title
+
+			#call findKeyword to get a list of (keyword,score)
+			results = findKeyword.find_keyword(title)
+
+			#iterate over (keyword,score) list to find all keywords with the top score
+			maxValue = max(results, key=itemgetter(1))[1]
+			keywords = []
+
+			for keyword,score in results:
+				if score == maxValue: #get keywords with max score
+					keyword = keyword.translate(None,string.punctuation) #eliminate punctuation
+					if keyword not in blackListWords: #check if keyword not in blacklist
+						print "Adding keyword for this record: " + str(keyword)
+						keywords.append(keyword)
+
+						#then update keyword dict
+						if keyword in keywordDict[date]:
+							keywordDict[date][keyword] += 1
+						else:
+							keywordDict[date][keyword] = 1
+
+			#store record with new keyword list
+			updatedRecordArray.append(date, title, score, keywords)
+			print "Record is now " + str(record)
+
+		#now add array to the queue
+		record_queue.put(updatedRecordArray)
+
+		#add keyword dict to queue
+		keyword_queue.put(keywordDict)
+
+	#main multiprocess function now
+	manager = Manager()
+	record_queue = Manager.Queue()
+	keyword_queue = Manager.Queue()
+	chunksize = int(math.ceil(len(records)/float(nprocs)))
+	procs = []
+
+	for i in xrange(nprocs):
+		p = Process(
+			target=worker,
+			args=(records[chunksize*i:chunksize*(i+1)],record_queue, keyword_queue, i))
+		procs.append(p)
+		p.start()
+
+	#wait for workers to finish
+	for p in procs:
+		p.join()
+
+	#collect updated records and keyword dicts 
+	recordArray = []
+	keywordDict = {}
+	for i in xrange(nprocs):
+		recordArray.extend(record_queue.get())
+
+		keywordDict = mergeKeywordDicts(keywordDict, keyword_queue.get()) 
+
+	return (recordArray, keywordDict)
+			
 
 
-def main():
-
-	#load blacklist
-	blackListFile = open('blacklist.txt')
-	blackList = blackListFile.read()
-	blackListWords = blackList.split() #create a list of words from the black list file
-
-	print "Blacklist file loaded!"
-	
+def main():	
 
 	#load dataset
 	with open(sys.argv[1], 'r') as f:
@@ -46,46 +158,12 @@ def main():
 
 	print "Dataset loaded"
 
-	keywordDict = {} #create a dict that tracks keyword counts per day: key is date, dict with keyword key and frequency value is value
+	updatedRecords = []
+	keywordDict = {} 
 
-	#iterate over each title in the data set and identify keywords
-	for record in dataSet:
-		date = record[0]
-		title = record[1]
+	#call multiprocess function to split work of parsing records and rebuilding dataset with keywords
+	updatedRecords, keywordDict = multiprocessRecords(dataSet, 512)
 
-		print "Processing record " + str(title) + " from " + str(date)
-
-		#prep dict for date
-		if date not in keywordDict:
-			keywordDict[date] = {}
-
-		#eliminate punctuation from title
-		title = title.translate(None, string.punctuation)
-		
-		#call findKeyword to get list of keyword,score
-		results = findKeyword.find_keyword(title)
-	
-		#iterate over keyword,score list to find all keywords with the top score
-		maxValue = max(results, key=itemgetter(1))[1] 
-		keywords = []
-		for keyword,score in results:
-			if score == maxValue: #get keywords with the max score
-				
-				keyword = keyword.translate(None,string.punctuation) #eliminate any punctuation keywords
-
-				if keyword not in blackListWords: #check if keyword is not in the blacklist
-					print "Adding keyword for this record: " + str(keyword)
-					keywords.append(keyword)
-
-					#then add to keyword dict (or update record with increment)
-					if keyword in keywordDict[date]:
-						keywordDict[date][keyword] += 1
-					else:
-						keywordDict[date][keyword] = 1
-	
-		#store record with new keyword
-		record = (record[0],record[1],record[2],keywords) #date, title, score, keywords array 
-		print "Record is now " + str(record)
 
 	print "Now outputing files"
 
