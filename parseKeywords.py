@@ -161,7 +161,14 @@ def main():
 
 			if len(record) > 3:
 				print "BAD RECORD: " + str(record)
-			dataSet.append((record[0],record[1],record[2])) #date, title, score
+			date = record[0]
+			title = record[1]
+			score = record[2]
+
+			#clean any nonprintable characters from title
+			printable = set(string.printable)
+			title = filter(lambda x:x in printable, title)
+			dataSet.append((date,title,score)) #date, title, score
 
 	print "Dataset loaded"
 
