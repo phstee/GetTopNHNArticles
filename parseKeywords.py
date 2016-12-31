@@ -7,6 +7,7 @@ import findKeyword #findKeyword.find_keyword(title) is intended usage
 import sys
 from operator import itemgetter
 import string
+import math
 
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -74,11 +75,11 @@ def multiprocessRecords(records,nprocs):
 
 
 		for record in records:
-			date = record[0]
-			title = record[1]
-			score = record[2]
+			date = str(record[0])
+			title = str(record[1])
+			score = int(record[2])
 			
-			print "Processing record " + str(title) + " from " + str(date)
+			print "Processing record " + title + " from " + date + " with score " + str(score)
 
 			#prep keyword dict
 			if date not in keywordDict:
@@ -107,8 +108,9 @@ def multiprocessRecords(records,nprocs):
 							keywordDict[date][keyword] = 1
 
 			#store record with new keyword list
-			updatedRecordArray.append(date, title, score, keywords)
-			print "Record is now " + str(record)
+			newRecord = (date,title, score, keywords)
+			updatedRecordArray.append(newRecord)
+			print "Record is now " + str(newRecord)
 
 		#now add array to the queue
 		record_queue.put(updatedRecordArray)
@@ -118,8 +120,8 @@ def multiprocessRecords(records,nprocs):
 
 	#main multiprocess function now
 	manager = Manager()
-	record_queue = Manager.Queue()
-	keyword_queue = Manager.Queue()
+	record_queue = manager.Queue()
+	keyword_queue = manager.Queue()
 	chunksize = int(math.ceil(len(records)/float(nprocs)))
 	procs = []
 
@@ -153,7 +155,10 @@ def main():
 		f.readline() #dump the header line
 		dataSet = [] #create an array to contain all records
 		for line in f:
-			record = line.split(',')
+			record = line.replace('\n','').split(',')
+
+			if len(record) > 3:
+				print "BAD RECORD: " + str(record)
 			dataSet.append((record[0],record[1],record[2])) #date, title, score
 
 	print "Dataset loaded"
@@ -162,7 +167,7 @@ def main():
 	keywordDict = {} 
 
 	#call multiprocess function to split work of parsing records and rebuilding dataset with keywords
-	updatedRecords, keywordDict = multiprocessRecords(dataSet, 512)
+	updatedRecords, keywordDict = multiprocessRecords(dataSet, 32)
 
 
 	print "Now outputing files"
